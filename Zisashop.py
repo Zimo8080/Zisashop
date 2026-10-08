@@ -971,12 +971,25 @@ def handle_all_messages(message):
                     bot.send_message(chat_id, f"❌ خطا در درخواست کد:\n`{str(e)}`", parse_mode="Markdown")
                     user_steps.pop(chat_id, None)
                 return
+
+        if is_admin(chat_id):
+            if step == 'ask_vnum_phone':
+                phone = text.replace(" ", "").replace("+", "")
+                bot.send_message(chat_id, "⏳ در حال ارسال درخواست کد به سرور تلگرام...")
+                try:
+                    code_hash = pyrogram_send_code(phone, chat_id)
+                    temp_data[chat_id] = {'phone': phone, 'phone_code_hash': code_hash}
+                    user_steps[chat_id] = 'ask_vnum_code'
+                    bot.send_message(chat_id, "🔐 **کد ۵ رقمی که تلگرام به این شماره ارسال کرده است را وارد کنید:**", parse_mode="Markdown")
+                except Exception as e:
+                    bot.send_message(chat_id, f"❌ خطا در درخواست کد:\n`{str(e)}`", parse_mode="Markdown")
+                    user_steps.pop(chat_id, None)
+                return
                 
             elif step == 'ask_vnum_code':
                 code = text.strip()
                 bot.send_message(chat_id, "⏳ در حال لاگین شدن به اکانت...")
                 try:
-                    # استفاده از chat_id برای پیدا کردن همون فایل قبلی
                     session_str = pyrogram_sign_in(temp_data[chat_id]['phone'], temp_data[chat_id]['phone_code_hash'], code, chat_id)
                     temp_data[chat_id]['session'] = session_str
                     user_steps[chat_id] = 'ask_vnum_country'
@@ -985,6 +998,7 @@ def handle_all_messages(message):
                     bot.send_message(chat_id, f"❌ خطا در لاگین:\n`{str(e)}`", parse_mode="Markdown")
                     user_steps.pop(chat_id, None)
                 return
+
 
                 
             elif step == 'ask_vnum_country':
