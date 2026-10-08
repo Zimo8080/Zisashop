@@ -84,20 +84,19 @@ def escape_md(text):
 # ==========================================
 # 🆕 توابع لاگین و استخراج کد با Pyrogram (نسخه ویژه Railway)
 # ==========================================
-def pyrogram_send_code(phone_number):
+def pyrogram_send_code(phone_number, chat_id):
     async def _send():
-        # استفاده از پوشه /tmp که تو سرور Railway همیشه قابلیت نوشتن داره
-        client = Client(f"sess_{phone_number}", api_id=API_ID, api_hash=API_HASH, workdir="/tmp")
+        # استفاده از chat_id برای نام فایل و ذخیره در پوشه مجاز /tmp
+        client = Client(f"sess_{chat_id}", api_id=API_ID, api_hash=API_HASH, workdir="/tmp")
         await client.connect()
         sent = await client.send_code(phone_number)
         await client.disconnect()
         return sent.phone_code_hash
     return asyncio.run(_send())
 
-def pyrogram_sign_in(phone_number, phone_code_hash, code):
+def pyrogram_sign_in(phone_number, phone_code_hash, code, chat_id):
     async def _sign_in():
-        # خوندن سشن از پوشه /tmp تا ارور EXPIRED نده
-        client = Client(f"sess_{phone_number}", api_id=API_ID, api_hash=API_HASH, workdir="/tmp")
+        client = Client(f"sess_{chat_id}", api_id=API_ID, api_hash=API_HASH, workdir="/tmp")
         await client.connect()
         await client.sign_in(phone_number, phone_code_hash, code)
         session_str = await client.export_session_string()
@@ -106,12 +105,12 @@ def pyrogram_sign_in(phone_number, phone_code_hash, code):
     
     session_str = asyncio.run(_sign_in())
     
-    # پاکسازی فایل موقت از سرور بعد از لاگین موفق
+    # پاکسازی فایل موقت از سرور Railway
     try:
-        if os.path.exists(f"/tmp/sess_{phone_number}.session"):
-            os.remove(f"/tmp/sess_{phone_number}.session")
-        if os.path.exists(f"/tmp/sess_{phone_number}.session-journal"):
-            os.remove(f"/tmp/sess_{phone_number}.session-journal")
+        if os.path.exists(f"/tmp/sess_{chat_id}.session"):
+            os.remove(f"/tmp/sess_{chat_id}.session")
+        if os.path.exists(f"/tmp/sess_{chat_id}.session-journal"):
+            os.remove(f"/tmp/sess_{chat_id}.session-journal")
     except: pass
     
     return session_str
