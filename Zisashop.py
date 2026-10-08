@@ -81,34 +81,37 @@ def escape_md(text):
     return str(text).replace("`", "")
 
 
-    # ==========================================
-# 🆕 توابع لاگین و استخراج کد با Pyrogram
 # ==========================================
-def pyrogram_send_code(phone_number, chat_id):
+# 🆕 توابع لاگین و استخراج کد با Pyrogram (نسخه ویژه Railway)
+# ==========================================
+def pyrogram_send_code(phone_number):
     async def _send():
-        # ساخت فایل سشن موقت با آیدی ادمین تا تداخل پیش نیاد
-        client = Client(f"temp_login_{chat_id}", api_id=API_ID, api_hash=API_HASH)
+        # استفاده از پوشه /tmp که تو سرور Railway همیشه قابلیت نوشتن داره
+        client = Client(f"sess_{phone_number}", api_id=API_ID, api_hash=API_HASH, workdir="/tmp")
         await client.connect()
         sent = await client.send_code(phone_number)
         await client.disconnect()
         return sent.phone_code_hash
     return asyncio.run(_send())
 
-def pyrogram_sign_in(phone_number, phone_code_hash, code, chat_id):
+def pyrogram_sign_in(phone_number, phone_code_hash, code):
     async def _sign_in():
-        client = Client(f"temp_login_{chat_id}", api_id=API_ID, api_hash=API_HASH)
+        # خوندن سشن از پوشه /tmp تا ارور EXPIRED نده
+        client = Client(f"sess_{phone_number}", api_id=API_ID, api_hash=API_HASH, workdir="/tmp")
         await client.connect()
         await client.sign_in(phone_number, phone_code_hash, code)
-        session_str = await client.export_session_string() # حالا که لاگین شد، سشن رو خروجی می‌گیریم
+        session_str = await client.export_session_string()
         await client.disconnect()
         return session_str
     
     session_str = asyncio.run(_sign_in())
     
-    # پاک کردن فایل سشن موقت از روی هاست برای تمیز موندن سرور
+    # پاکسازی فایل موقت از سرور بعد از لاگین موفق
     try:
-        if os.path.exists(f"temp_login_{chat_id}.session"):
-            os.remove(f"temp_login_{chat_id}.session")
+        if os.path.exists(f"/tmp/sess_{phone_number}.session"):
+            os.remove(f"/tmp/sess_{phone_number}.session")
+        if os.path.exists(f"/tmp/sess_{phone_number}.session-journal"):
+            os.remove(f"/tmp/sess_{phone_number}.session-journal")
     except: pass
     
     return session_str
