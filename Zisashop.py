@@ -86,7 +86,8 @@ def escape_md(text):
 # ==========================================
 def pyrogram_send_code(phone_number):
     async def _send():
-        client = Client("mem_admin", api_id=API_ID, api_hash=API_HASH, in_memory=True)
+        # ساخت یک نشست موقت با اسم شماره تلفن
+        client = Client(f"temp_{phone_number}", api_id=API_ID, api_hash=API_HASH)
         await client.connect()
         sent = await client.send_code(phone_number)
         await client.disconnect()
@@ -95,17 +96,25 @@ def pyrogram_send_code(phone_number):
 
 def pyrogram_sign_in(phone_number, phone_code_hash, code):
     async def _sign_in():
-        client = Client("mem_admin", api_id=API_ID, api_hash=API_HASH, in_memory=True)
+        # استفاده از همون نشست قبلی برای لاگین
+        client = Client(f"temp_{phone_number}", api_id=API_ID, api_hash=API_HASH)
         await client.connect()
         await client.sign_in(phone_number, phone_code_hash, code)
         session = await client.export_session_string()
         await client.disconnect()
         return session
-    return asyncio.run(_sign_in())
+    
+    session_str = asyncio.run(_sign_in())
+    # پاک کردن فایل نشست بعد از ورود موفق تا هاست شلوغ نشه
+    try:
+        if os.path.exists(f"temp_{phone_number}.session"):
+            os.remove(f"temp_{phone_number}.session")
+    except: pass
+    return session_str
 
 def pyrogram_get_latest_code(session_string):
     async def _get():
-        client = Client("mem_buyer", api_id=API_ID, api_hash=API_HASH, session_string=session_string)
+        client = Client("mem_buyer", api_id=API_ID, api_hash=API_HASH, session_string=session_string, in_memory=True)
         await client.connect()
         found_code = None
         async for msg in client.get_chat_history(777000, limit=5):
@@ -121,7 +130,7 @@ def pyrogram_get_latest_code(session_string):
 
 def pyrogram_logout_session(session_string):
     async def _out():
-        client = Client("mem_buyer", api_id=API_ID, api_hash=API_HASH, session_string=session_string)
+        client = Client("mem_buyer", api_id=API_ID, api_hash=API_HASH, session_string=session_string, in_memory=True)
         await client.connect()
         await client.log_out()
     try: asyncio.run(_out())
