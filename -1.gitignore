@@ -1,0 +1,7 @@
+.env
+__pycache__/
+*.pyc
+shop.db
+data/
+backups/
+*.session
