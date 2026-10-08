@@ -950,33 +950,6 @@ def handle_all_messages(message):
                 phone = text.replace(" ", "").replace("+", "")
                 bot.send_message(chat_id, "⏳ در حال ارسال درخواست کد به سرور تلگرام...")
                 try:
-                    code_hash = pyrogram_send_code(phone)
-                    temp_data[chat_id] = {'phone': phone, 'phone_code_hash': code_hash}
-                    user_steps[chat_id] = 'ask_vnum_code'
-                    bot.send_message(chat_id, "🔐 **کد ۵ رقمی که تلگرام به این شماره ارسال کرده است را وارد کنید:**")
-                except Exception as e:
-                    bot.send_message(chat_id, f"❌ خطا در درخواست کد:\n`{str(e)}`", parse_mode="Markdown")
-                    user_steps.pop(chat_id, None)
-                return
-                
-                        elif step == 'ask_vnum_phone':
-                phone = text.replace(" ", "").replace("+", "")
-                bot.send_message(chat_id, "⏳ در حال ارسال درخواست کد به سرور تلگرام...")
-                try:
-                    code_hash = pyrogram_send_code(phone, chat_id) # اضافه شدن chat_id
-                    temp_data[chat_id] = {'phone': phone, 'phone_code_hash': code_hash}
-                    user_steps[chat_id] = 'ask_vnum_code'
-                    bot.send_message(chat_id, "🔐 **کد ۵ رقمی که تلگرام به این شماره ارسال کرده است را وارد کنید:**", parse_mode="Markdown")
-                except Exception as e:
-                    bot.send_message(chat_id, f"❌ خطا در درخواست کد:\n`{str(e)}`", parse_mode="Markdown")
-                    user_steps.pop(chat_id, None)
-                return
-
-        if is_admin(chat_id):
-            if step == 'ask_vnum_phone':
-                phone = text.replace(" ", "").replace("+", "")
-                bot.send_message(chat_id, "⏳ در حال ارسال درخواست کد به سرور تلگرام...")
-                try:
                     code_hash = pyrogram_send_code(phone, chat_id)
                     temp_data[chat_id] = {'phone': phone, 'phone_code_hash': code_hash}
                     user_steps[chat_id] = 'ask_vnum_code'
@@ -998,6 +971,7 @@ def handle_all_messages(message):
                     bot.send_message(chat_id, f"❌ خطا در لاگین:\n`{str(e)}`", parse_mode="Markdown")
                     user_steps.pop(chat_id, None)
                 return
+
 
 
                 
