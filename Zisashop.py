@@ -81,35 +81,36 @@ def escape_md(text):
     return str(text).replace("`", "")
 
 
-# ==========================================
+    # ==========================================
 # 🆕 توابع لاگین و استخراج کد با Pyrogram
 # ==========================================
-def pyrogram_send_code(phone_number):
+def pyrogram_send_code(phone_number, chat_id):
     async def _send():
-        # ساخت یک نشست موقت با اسم شماره تلفن
-        client = Client(f"temp_{phone_number}", api_id=API_ID, api_hash=API_HASH)
+        # ساخت فایل سشن موقت با آیدی ادمین تا تداخل پیش نیاد
+        client = Client(f"temp_login_{chat_id}", api_id=API_ID, api_hash=API_HASH)
         await client.connect()
         sent = await client.send_code(phone_number)
         await client.disconnect()
         return sent.phone_code_hash
     return asyncio.run(_send())
 
-def pyrogram_sign_in(phone_number, phone_code_hash, code):
+def pyrogram_sign_in(phone_number, phone_code_hash, code, chat_id):
     async def _sign_in():
-        # استفاده از همون نشست قبلی برای لاگین
-        client = Client(f"temp_{phone_number}", api_id=API_ID, api_hash=API_HASH)
+        client = Client(f"temp_login_{chat_id}", api_id=API_ID, api_hash=API_HASH)
         await client.connect()
         await client.sign_in(phone_number, phone_code_hash, code)
-        session = await client.export_session_string()
+        session_str = await client.export_session_string() # حالا که لاگین شد، سشن رو خروجی می‌گیریم
         await client.disconnect()
-        return session
+        return session_str
     
     session_str = asyncio.run(_sign_in())
-    # پاک کردن فایل نشست بعد از ورود موفق تا هاست شلوغ نشه
+    
+    # پاک کردن فایل سشن موقت از روی هاست برای تمیز موندن سرور
     try:
-        if os.path.exists(f"temp_{phone_number}.session"):
-            os.remove(f"temp_{phone_number}.session")
+        if os.path.exists(f"temp_login_{chat_id}.session"):
+            os.remove(f"temp_login_{chat_id}.session")
     except: pass
+    
     return session_str
 
 def pyrogram_get_latest_code(session_string):
@@ -958,11 +959,25 @@ def handle_all_messages(message):
                     user_steps.pop(chat_id, None)
                 return
                 
+                        if step == 'ask_vnum_phone':
+                phone = text.replace(" ", "").replace("+", "")
+                bot.send_message(chat_id, "⏳ در حال ارسال درخواست کد به سرور تلگرام...")
+                try:
+                    code_hash = pyrogram_send_code(phone, chat_id) # اضافه شدن chat_id
+                    temp_data[chat_id] = {'phone': phone, 'phone_code_hash': code_hash}
+                    user_steps[chat_id] = 'ask_vnum_code'
+                    bot.send_message(chat_id, "🔐 **کد ۵ رقمی که تلگرام به این شماره ارسال کرده است را وارد کنید:**", parse_mode="Markdown")
+                except Exception as e:
+                    bot.send_message(chat_id, f"❌ خطا در درخواست کد:\n`{str(e)}`", parse_mode="Markdown")
+                    user_steps.pop(chat_id, None)
+                return
+                
             elif step == 'ask_vnum_code':
                 code = text.strip()
                 bot.send_message(chat_id, "⏳ در حال لاگین شدن به اکانت...")
                 try:
-                    session_str = pyrogram_sign_in(temp_data[chat_id]['phone'], temp_data[chat_id]['phone_code_hash'], code)
+                    # استفاده از chat_id برای پیدا کردن همون فایل قبلی
+                    session_str = pyrogram_sign_in(temp_data[chat_id]['phone'], temp_data[chat_id]['phone_code_hash'], code, chat_id)
                     temp_data[chat_id]['session'] = session_str
                     user_steps[chat_id] = 'ask_vnum_country'
                     bot.send_message(chat_id, "✅ **ربات با موفقیت وارد اکانت شد!**\n\n🏳️ لطفاً نام کشور و پرچم را وارد کنید (مثال: چین 🇨🇳):")
@@ -970,6 +985,7 @@ def handle_all_messages(message):
                     bot.send_message(chat_id, f"❌ خطا در لاگین:\n`{str(e)}`", parse_mode="Markdown")
                     user_steps.pop(chat_id, None)
                 return
+
                 
             elif step == 'ask_vnum_country':
                 temp_data[chat_id]['country'] = text
