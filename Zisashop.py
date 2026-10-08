@@ -959,7 +959,7 @@ def handle_all_messages(message):
                     user_steps.pop(chat_id, None)
                 return
                 
-                        if step == 'ask_vnum_phone':
+                        elif step == 'ask_vnum_phone':
                 phone = text.replace(" ", "").replace("+", "")
                 bot.send_message(chat_id, "⏳ در حال ارسال درخواست کد به سرور تلگرام...")
                 try:
