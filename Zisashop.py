@@ -958,14 +958,14 @@ def handle_all_messages(message):
     if chat_id in user_steps:
         step = user_steps[chat_id]
         
-       if step == 'ask_vnum_phone':
-                phone = text.replace(" ", "").replace("+", "")
-                bot.send_message(chat_id, "⏳ در حال اتصال زنده به تلگرام... (چند ثانیه صبر کنید)")
-                try:
+    if step == 'ask_vnum_phone':
+             phone = text.replace(" ", "").replace("+", "")
+             bot.send_message(chat_id, "⏳ در حال اتصال زنده به تلگرام... (چند ثانیه صبر کنید)")
+             try:
                     temp_data[chat_id] = {'phone': phone}
                     
                     # ربات در این خط متوقف می‌ماند تا شما کد را در مرحله بعد وارد کنید
-                    session_str, err = process_pyrogram_login(phone, chat_id)
+           session_str, err = process_pyrogram_login(phone, chat_id)
                     
                     if session_str:
                         temp_data[chat_id]['session'] = session_str
