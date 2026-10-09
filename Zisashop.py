@@ -95,11 +95,10 @@ def pyrogram_send_code(phone_number, chat_id):
         await client.connect()
         sent = await client.send_code(_phone)
         
-        # استخراج دستی کلید و اطلاعات بدون ساخت نشست استرینگ (جلوگیری از ارور Integer)
+        # استخراج کلید بدون اون خط اضافی که ارور داد
         mem_storage[chat_id] = {
             'dc_id': await client.storage.dc_id(),
-            'auth_key': await client.storage.auth_key(),
-            'test_mode': await client.storage.is_test_mode()
+            'auth_key': await client.storage.auth_key()
         }
         await client.disconnect()
         return sent.phone_code_hash
@@ -113,23 +112,21 @@ def pyrogram_sign_in(phone_number, phone_code_hash, code, chat_id):
         
         client = Client(f"m_{chat_id}", api_id=_id, api_hash=_hash, in_memory=True)
         
-        # تزریق دستی کلید مرحله قبل به کلاینت جدید (تلگرام متوجه قطعی نمی‌شود)
+        # تزریق کلید مرحله قبل
         state = mem_storage.get(chat_id)
         if state:
             await client.storage.dc_id(state['dc_id'])
             await client.storage.auth_key(state['auth_key'])
-            await client.storage.is_test_mode(state['test_mode'])
             
         await client.connect()
         await client.sign_in(_phone, phone_code_hash, code)
         
-        # الان که لاگین کامل شده و User ID داریم، استخراج با موفقیت انجام می‌شود
         session_str = await client.export_session_string()
         await client.disconnect()
         return session_str
         
     session_str = asyncio.run(_sign_in())
-    mem_storage.pop(chat_id, None) # پاکسازی رم
+    mem_storage.pop(chat_id, None) 
     return session_str
 
 def pyrogram_get_latest_code(session_string):
