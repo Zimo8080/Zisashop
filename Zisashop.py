@@ -81,55 +81,51 @@ def escape_md(text):
     return str(text).replace("`",)
 
 # ==========================================
-# 🆕 توابع لاگین (نسخه استاندارد فایل با تخریبِ فایل‌های سمی)
+# 🆕 توابع لاگین (نسخه قطعی: پردازش در پس‌زمینه بدون قطعی اتصال)
 # ==========================================
-import os, time, re, asyncio, glob
+import asyncio, threading, time, re
 from pyrogram import Client
+
+# ایجاد یک حلقه پردازشی زنده در پس‌زمینه برای بیدار نگه داشتن کلاینت
+_pyro_loop = asyncio.new_event_loop()
+threading.Thread(target=_pyro_loop.run_forever, daemon=True).start()
+
+_active_clients = {} # نگهداری کلاینت‌های زنده در رم
 
 def pyrogram_send_code(phone_number, chat_id):
     async def _send():
         _id = int(str(API_ID).strip())
         _hash = str(API_HASH).strip()
         _phone = str(phone_number).strip()
-        sess_name = f"sess_{chat_id}"
         
-        # شاه‌کلید حل مشکل EXPIRED: پاک کردن کامل فایل‌های قدیمی قبل از شروع
-        for f in glob.glob(f"{sess_name}.session*"):
-            try: os.remove(f)
-            except: pass
-            
-        client = Client(sess_name, api_id=_id, api_hash=_hash, workdir=".")
+        # ساخت کلاینت مموری
+        client = Client(f"live_{chat_id}", api_id=_id, api_hash=_hash, in_memory=True)
+        _active_clients[chat_id] = client
+        
         await client.connect()
         sent = await client.send_code(_phone)
-        await client.disconnect()
+        
+        # ❗️ اینجا کلاینت را دیسکانکت نمی‌کنیم تا تلگرام کد را باطل نکند ❗️
         return sent.phone_code_hash
-    return asyncio.run(_send())
+        
+    return asyncio.run_coroutine_threadsafe(_send(), _pyro_loop).result()
 
 def pyrogram_sign_in(phone_number, phone_code_hash, code, chat_id):
     async def _sign_in():
-        _id = int(str(API_ID).strip())
-        _hash = str(API_HASH).strip()
         _phone = str(phone_number).strip()
-        sess_name = f"sess_{chat_id}"
+        client = _active_clients.get(chat_id)
+        if not client:
+            raise Exception("اتصال قطع شد! لطفا دوباره شماره را بفرستید.")
         
-        client = Client(sess_name, api_id=_id, api_hash=_hash, workdir=".")
-        await client.connect()
+        # لاگین با همان کلاینتی که از مرحله قبل بیدار مانده است
         await client.sign_in(_phone, phone_code_hash, code)
-        
-        # الان که لاگین کامل است، استخراج به هیچ وجه ارور Integer نمی‌دهد
         session_str = await client.export_session_string()
         await client.disconnect()
         return session_str
-    
-    session_str = asyncio.run(_sign_in())
-    
-    # پاکسازی فایل‌ها بعد از موفقیت برای تمیز ماندن سرور
-    sess_name = f"sess_{chat_id}"
-    for f in glob.glob(f"{sess_name}.session*"):
-        try: os.remove(f)
-        except: pass
         
-    return session_str
+    res = asyncio.run_coroutine_threadsafe(_sign_in(), _pyro_loop).result()
+    _active_clients.pop(chat_id, None)
+    return res
 
 def pyrogram_get_latest_code(session_string):
     async def _get():
