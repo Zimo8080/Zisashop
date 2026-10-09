@@ -81,25 +81,26 @@ def escape_md(text):
     return str(text).replace("`",)
 
 # ==========================================
-# 🆕 توابع لاگین (نسخه قطعی با تزریق مستقیم کلید در رم)
+# 🆕 توابع لاگین (نسخه استاندارد فایل با تخریبِ فایل‌های سمی)
 # ==========================================
-mem_storage = {} # ذخیره امن کلیدهای خام در حافظه پایتون
+import os, time, re, asyncio, glob
+from pyrogram import Client
 
 def pyrogram_send_code(phone_number, chat_id):
     async def _send():
         _id = int(str(API_ID).strip())
         _hash = str(API_HASH).strip()
         _phone = str(phone_number).strip()
+        sess_name = f"sess_{chat_id}"
         
-        client = Client(f"m_{chat_id}", api_id=_id, api_hash=_hash, in_memory=True)
+        # شاه‌کلید حل مشکل EXPIRED: پاک کردن کامل فایل‌های قدیمی قبل از شروع
+        for f in glob.glob(f"{sess_name}.session*"):
+            try: os.remove(f)
+            except: pass
+            
+        client = Client(sess_name, api_id=_id, api_hash=_hash, workdir=".")
         await client.connect()
         sent = await client.send_code(_phone)
-        
-        # استخراج کلید بدون اون خط اضافی که ارور داد
-        mem_storage[chat_id] = {
-            'dc_id': await client.storage.dc_id(),
-            'auth_key': await client.storage.auth_key()
-        }
         await client.disconnect()
         return sent.phone_code_hash
     return asyncio.run(_send())
@@ -109,31 +110,32 @@ def pyrogram_sign_in(phone_number, phone_code_hash, code, chat_id):
         _id = int(str(API_ID).strip())
         _hash = str(API_HASH).strip()
         _phone = str(phone_number).strip()
+        sess_name = f"sess_{chat_id}"
         
-        client = Client(f"m_{chat_id}", api_id=_id, api_hash=_hash, in_memory=True)
-        
-        # تزریق کلید مرحله قبل
-        state = mem_storage.get(chat_id)
-        if state:
-            await client.storage.dc_id(state['dc_id'])
-            await client.storage.auth_key(state['auth_key'])
-            
+        client = Client(sess_name, api_id=_id, api_hash=_hash, workdir=".")
         await client.connect()
         await client.sign_in(_phone, phone_code_hash, code)
         
+        # الان که لاگین کامل است، استخراج به هیچ وجه ارور Integer نمی‌دهد
         session_str = await client.export_session_string()
         await client.disconnect()
         return session_str
-        
+    
     session_str = asyncio.run(_sign_in())
-    mem_storage.pop(chat_id, None) 
+    
+    # پاکسازی فایل‌ها بعد از موفقیت برای تمیز ماندن سرور
+    sess_name = f"sess_{chat_id}"
+    for f in glob.glob(f"{sess_name}.session*"):
+        try: os.remove(f)
+        except: pass
+        
     return session_str
 
 def pyrogram_get_latest_code(session_string):
     async def _get():
         _id = int(str(API_ID).strip())
         _hash = str(API_HASH).strip()
-        client = Client("temp_buyer", api_id=_id, api_hash=_hash, session_string=str(session_string), in_memory=True)
+        client = Client("temp_get", api_id=_id, api_hash=_hash, session_string=str(session_string), in_memory=True)
         await client.connect()
         found_code = None
         async for msg in client.get_chat_history(777000, limit=5):
@@ -151,7 +153,7 @@ def pyrogram_logout_session(session_string):
     async def _out():
         _id = int(str(API_ID).strip())
         _hash = str(API_HASH).strip()
-        client = Client("temp_buyer", api_id=_id, api_hash=_hash, session_string=str(session_string), in_memory=True)
+        client = Client("temp_out", api_id=_id, api_hash=_hash, session_string=str(session_string), in_memory=True)
         await client.connect()
         await client.log_out()
     try: asyncio.run(_out())
