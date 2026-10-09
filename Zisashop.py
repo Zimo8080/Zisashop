@@ -959,30 +959,31 @@ def handle_all_messages(message):
         step = user_steps[chat_id]
         
         if is_admin(chat_id):
-            if step == 'ask_vnum_phone':
+                        if step == 'ask_vnum_phone':
                 phone = text.replace(" ", "").replace("+", "")
-                bot.send_message(chat_id, "⏳ در حال ارسال درخواست کد به سرور تلگرام...")
+                bot.send_message(chat_id, "⏳ در حال اتصال زنده به تلگرام... (چند ثانیه صبر کنید)")
                 try:
-                    code_hash = pyrogram_send_code(phone, chat_id)
-                    temp_data[chat_id] = {'phone': phone, 'phone_code_hash': code_hash}
-                    user_steps[chat_id] = 'ask_vnum_code'
-                    bot.send_message(chat_id, "🔐 **کد ۵ رقمی که تلگرام به این شماره ارسال کرده است را وارد کنید:**", parse_mode="Markdown")
+                    temp_data[chat_id] = {'phone': phone}
+                    # فراخوانی تابع جدید که ربات را بیدار نگه می‌دارد
+                    session_str, err = process_pyrogram_login(phone, chat_id)
+                    
+                    if session_str:
+                        temp_data[chat_id]['session'] = session_str
+                        user_steps[chat_id] = 'ask_vnum_country'
+                        bot.send_message(chat_id, "✅ **ربات با موفقیت وارد اکانت شد!**\n\n🏳️ لطفاً نام کشور و پرچم را وارد کنید (مثال: چین 🇨🇳):")
+                    else:
+                        bot.send_message(chat_id, f"❌ خطا در لاگین:\n`{err}`", parse_mode="Markdown")
+                        user_steps.pop(chat_id, None)
                 except Exception as e:
-                    bot.send_message(chat_id, f"❌ خطا در درخواست کد:\n`{str(e)}`", parse_mode="Markdown")
+                    bot.send_message(chat_id, f"❌ خطای سیستمی:\n`{str(e)}`", parse_mode="Markdown")
                     user_steps.pop(chat_id, None)
                 return
                 
             elif step == 'ask_vnum_code':
                 code = text.strip()
-                bot.send_message(chat_id, "⏳ در حال لاگین شدن به اکانت...")
-                try:
-                    session_str = pyrogram_sign_in(temp_data[chat_id]['phone'], temp_data[chat_id]['phone_code_hash'], code, chat_id)
-                    temp_data[chat_id]['session'] = session_str
-                    user_steps[chat_id] = 'ask_vnum_country'
-                    bot.send_message(chat_id, "✅ **ربات با موفقیت وارد اکانت شد!**\n\n🏳️ لطفاً نام کشور و پرچم را وارد کنید (مثال: چین 🇨🇳):")
-                except Exception as e:
-                    bot.send_message(chat_id, f"❌ خطا در لاگین:\n`{str(e)}`", parse_mode="Markdown")
-                    user_steps.pop(chat_id, None)
+                bot.send_message(chat_id, "⏳ در حال بررسی کد...")
+                if chat_id in temp_data:
+                    temp_data[chat_id]['internal_code'] = code
                 return
                 
             elif step == 'ask_vnum_country':
@@ -1003,6 +1004,7 @@ def handle_all_messages(message):
                 bot.send_message(chat_id, f"✅ شماره {d['phone']} برای کشور {d['country']} با قیمت {price:,} تومان در ربات آنلاین شد.")
                 user_steps.pop(chat_id, None)
                 return
+
 
 
 
