@@ -1018,24 +1018,46 @@ def handle_all_messages(message):
 
 
                 
-            elif step == 'ask_vnum_country':
-                temp_data[chat_id]['country'] = text
-                user_steps[chat_id] = 'ask_vnum_price'
-                bot.send_message(chat_id, "💰 **قیمت این شماره را به تومان وارد کنید (فقط عدد):**", parse_mode="Markdown")
-                return
-                
             elif step == 'ask_vnum_price':
-                if not text.isdigit(): return bot.send_message(chat_id, "❌ فقط عدد وارد کنید.")
-                price = int(text)
-                d = temp_data[chat_id]
-                conn = sqlite3.connect(DB_PATH)
-                c = conn.cursor()
-                c.execute("INSERT INTO vnumbers (country, price, phone, session_string) VALUES (?, ?, ?, ?)", (d['country'], price, d['phone'], d['session']))
-                conn.commit()
-                conn.close()
-                bot.send_message(chat_id, f"✅ شماره {d['phone']} برای کشور {d['country']} با قیمت {price:,} تومان در ربات آنلاین شد.")
-                user_steps.pop(chat_id, None)
+                # تبدیل اعداد فارسی کیبورد به انگلیسی
+                en_text = text.translate(str.maketrans('۰۱۲۳۴۵۶۷۸۹', '0123456789'))
+                
+                if not en_text.isdigit():
+                    bot.send_message(chat_id, "❌ فقط عدد وارد کنید.")
+                    return
+                
+                bot.send_message(chat_id, "⏳ در حال ذخیره در دیتابیس...")
+                
+                try:
+                    price = int(en_text)
+                    d = temp_data[chat_id]
+                    
+                    conn = sqlite3.connect('shop.db')
+                    c = conn.cursor()
+                    
+                    # ساخت جدول در صورت وجود نداشتن (برای جلوگیری از ارور)
+                    c.execute('''CREATE TABLE IF NOT EXISTS vnumbers
+                                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                  country TEXT,
+                                  price INTEGER,
+                                  phone TEXT,
+                                  session_string TEXT)''')
+                                  
+                    c.execute("INSERT INTO vnumbers (country, price, phone, session_string) VALUES (?, ?, ?, ?)", 
+                              (d['country'], price, d['phone'], d.get('session', '')))
+                    conn.commit()
+                    conn.close()
+                    
+                    bot.send_message(chat_id, f"✅ شماره {d['phone']} برای کشور {d['country']} با قیمت {price:,} تومان در ربات آنلاین شد.")
+                    
+                    user_steps.pop(chat_id, None)
+                    temp_data.pop(chat_id, None)
+                    
+                except Exception as e:
+                    # اگر اروری باشه مستقیم تو تلگرام بهت میده
+                    bot.send_message(chat_id, f"❌ خطای دیتابیس:\n`{str(e)}`", parse_mode="Markdown")
                 return
+
 
             elif step == 'ask_subcat_name':
                 parent_cat = temp_data[chat_id]['parent_cat']
