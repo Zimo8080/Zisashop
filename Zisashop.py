@@ -81,9 +81,9 @@ def escape_md(text):
     return str(text).replace("`",)
 
 # ==========================================
-# 🆕 توابع لاگین (نسخه قطعی با انتقال Auth Key در رم)
+# 🆕 توابع لاگین (نسخه قطعی با تزریق مستقیم کلید در رم)
 # ==========================================
-temp_auth_keys = {} # ذخیره کلید خام سشن برای فریب دادن تلگرام
+mem_storage = {} # ذخیره امن کلیدهای خام در حافظه پایتون
 
 def pyrogram_send_code(phone_number, chat_id):
     async def _send():
@@ -91,10 +91,16 @@ def pyrogram_send_code(phone_number, chat_id):
         _hash = str(API_HASH).strip()
         _phone = str(phone_number).strip()
         
-        # ساخت فایل نشست با اسم خود شماره برای جلوگیری از تداخل و پاک شدن
-        client = Client(f"acc_{_phone}", api_id=_id, api_hash=_hash, workdir=".")
+        client = Client(f"m_{chat_id}", api_id=_id, api_hash=_hash, in_memory=True)
         await client.connect()
         sent = await client.send_code(_phone)
+        
+        # استخراج دستی کلید و اطلاعات بدون ساخت نشست استرینگ (جلوگیری از ارور Integer)
+        mem_storage[chat_id] = {
+            'dc_id': await client.storage.dc_id(),
+            'auth_key': await client.storage.auth_key(),
+            'test_mode': await client.storage.is_test_mode()
+        }
         await client.disconnect()
         return sent.phone_code_hash
     return asyncio.run(_send())
@@ -105,25 +111,25 @@ def pyrogram_sign_in(phone_number, phone_code_hash, code, chat_id):
         _hash = str(API_HASH).strip()
         _phone = str(phone_number).strip()
         
-        # خوندن همون فایل مرحله قبل
-        client = Client(f"acc_{_phone}", api_id=_id, api_hash=_hash, workdir=".")
+        client = Client(f"m_{chat_id}", api_id=_id, api_hash=_hash, in_memory=True)
+        
+        # تزریق دستی کلید مرحله قبل به کلاینت جدید (تلگرام متوجه قطعی نمی‌شود)
+        state = mem_storage.get(chat_id)
+        if state:
+            await client.storage.dc_id(state['dc_id'])
+            await client.storage.auth_key(state['auth_key'])
+            await client.storage.is_test_mode(state['test_mode'])
+            
         await client.connect()
         await client.sign_in(_phone, phone_code_hash, code)
         
-        # الان که لاگین کامله، استخراج بدون ارور انجام میشه
+        # الان که لاگین کامل شده و User ID داریم، استخراج با موفقیت انجام می‌شود
         session_str = await client.export_session_string()
         await client.disconnect()
         return session_str
-    
+        
     session_str = asyncio.run(_sign_in())
-    
-    # پاک کردن فایل بعد از اتمام کار
-    try:
-        for ext in ["", "-journal", "-wal", "-shm"]:
-            if os.path.exists(f"acc_{phone_number}.session{ext}"):
-                os.remove(f"acc_{phone_number}.session{ext}")
-    except: pass
-    
+    mem_storage.pop(chat_id, None) # پاکسازی رم
     return session_str
 
 def pyrogram_get_latest_code(session_string):
