@@ -82,51 +82,46 @@ def escape_md(text):
 
 
 # ==========================================
-# 🆕 توابع لاگین و استخراج کد با Pyrogram (نسخه نهایی و ضد باگ - ویژه سرور)
+# 🆕 توابع لاگین و استخراج کد با Pyrogram (نهایی - نسخه فایلی امن)
 # ==========================================
-temp_sessions = {} # ذخیره امن کلید ارتباطی در رم سرور
-
 def pyrogram_send_code(phone_number, chat_id):
     async def _send():
-        # تبدیل اجباری و قفل کردن متغیرها برای جلوگیری از ارور Integer
         _id = int(str(API_ID).strip())
         _hash = str(API_HASH).strip()
         _phone = str(phone_number).strip()
         
-        client = Client(f"mem_{chat_id}", api_id=_id, api_hash=_hash, in_memory=True)
+        # استفاده از فایل امن برای تضمین از بین نرفتن کلید
+        client = Client(f"login_{chat_id}", api_id=_id, api_hash=_hash)
         await client.connect()
         sent = await client.send_code(_phone)
-        
-        # استخراج آنی کلید قبل از بسته شدن برای رفع ارور EXPIRED
-        sess = await client.export_session_string()
         await client.disconnect()
-        return sent.phone_code_hash, sess
-        
-    hash_str, sess_str = asyncio.run(_send())
-    temp_sessions[str(chat_id)] = sess_str
-    return hash_str
+        return sent.phone_code_hash
+    return asyncio.run(_send())
 
 def pyrogram_sign_in(phone_number, phone_code_hash, code, chat_id):
     async def _sign_in():
         _id = int(str(API_ID).strip())
         _hash = str(API_HASH).strip()
         _phone = str(phone_number).strip()
-        _hash_str = str(phone_code_hash).strip()
-        _code = str(code).strip()
         
-        saved_session = temp_sessions.get(str(chat_id))
-        
-        client = Client(f"mem_in_{chat_id}", api_id=_id, api_hash=_hash, session_string=saved_session, in_memory=True)
+        client = Client(f"login_{chat_id}", api_id=_id, api_hash=_hash)
         await client.connect()
-        await client.sign_in(_phone, _hash_str, _code)
-        
-        final_session = await client.export_session_string()
+        await client.sign_in(_phone, phone_code_hash, code)
+        # الان که لاگین شده، استخراج ارور نمیده
+        session_str = await client.export_session_string() 
         await client.disconnect()
-        return final_session
-        
-    final_sess = asyncio.run(_sign_in())
-    temp_sessions.pop(str(chat_id), None)
-    return final_sess
+        return session_str
+    
+    session_str = asyncio.run(_sign_in())
+    
+    # پاکسازی تمام فایل‌های جانبی تلگرام برای جلوگیری از تداخل
+    try:
+        for ext in ["", "-journal", "-wal", "-shm"]:
+            if os.path.exists(f"login_{chat_id}.session{ext}"):
+                os.remove(f"login_{chat_id}.session{ext}")
+    except: pass
+    
+    return session_str
 
 def pyrogram_get_latest_code(session_string):
     async def _get():
