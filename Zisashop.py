@@ -958,7 +958,7 @@ def handle_all_messages(message):
     if chat_id in user_steps:
         step = user_steps[chat_id]
         
-       if step == 'ask_vnum_phone':
+       if step == 'ask_vnum_phone'
                 phone = text.replace(" ", "").replace("+", "")
                 bot.send_message(chat_id, "⏳ در حال اتصال زنده به تلگرام... (چند ثانیه صبر کنید)")
                 try:
