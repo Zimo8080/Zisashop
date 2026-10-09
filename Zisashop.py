@@ -91,13 +91,10 @@ def pyrogram_send_code(phone_number, chat_id):
         _hash = str(API_HASH).strip()
         _phone = str(phone_number).strip()
         
-        client = Client("mem_send", api_id=_id, api_hash=_hash, in_memory=True)
+        # ساخت فایل نشست با اسم خود شماره برای جلوگیری از تداخل و پاک شدن
+        client = Client(f"acc_{_phone}", api_id=_id, api_hash=_hash, workdir=".")
         await client.connect()
         sent = await client.send_code(_phone)
-        
-        # استخراج کلید خام ارتباطی قبل از خروج و ذخیره در رم
-        temp_auth_keys[chat_id] = await client.export_session_string()
-        
         await client.disconnect()
         return sent.phone_code_hash
     return asyncio.run(_send())
@@ -108,27 +105,32 @@ def pyrogram_sign_in(phone_number, phone_code_hash, code, chat_id):
         _hash = str(API_HASH).strip()
         _phone = str(phone_number).strip()
         
-        # بازخوانی کلید خام (تلگرام فکر می‌کند این همان دستگاه قبلی است و قطع نشده)
-        saved_session = temp_auth_keys.get(chat_id)
-        
-        client = Client("mem_sign", api_id=_id, api_hash=_hash, session_string=saved_session, in_memory=True)
+        # خوندن همون فایل مرحله قبل
+        client = Client(f"acc_{_phone}", api_id=_id, api_hash=_hash, workdir=".")
         await client.connect()
         await client.sign_in(_phone, phone_code_hash, code)
         
-        # استخراج سشن نهایی که حالا لاگین شده است
-        final_session = await client.export_session_string()
+        # الان که لاگین کامله، استخراج بدون ارور انجام میشه
+        session_str = await client.export_session_string()
         await client.disconnect()
-        return final_session
+        return session_str
     
     session_str = asyncio.run(_sign_in())
-    temp_auth_keys.pop(chat_id, None) # پاکسازی حافظه
+    
+    # پاک کردن فایل بعد از اتمام کار
+    try:
+        for ext in ["", "-journal", "-wal", "-shm"]:
+            if os.path.exists(f"acc_{phone_number}.session{ext}"):
+                os.remove(f"acc_{phone_number}.session{ext}")
+    except: pass
+    
     return session_str
 
 def pyrogram_get_latest_code(session_string):
     async def _get():
         _id = int(str(API_ID).strip())
         _hash = str(API_HASH).strip()
-        client = Client("mem_get", api_id=_id, api_hash=_hash, session_string=str(session_string), in_memory=True)
+        client = Client("temp_buyer", api_id=_id, api_hash=_hash, session_string=str(session_string), in_memory=True)
         await client.connect()
         found_code = None
         async for msg in client.get_chat_history(777000, limit=5):
@@ -146,7 +148,7 @@ def pyrogram_logout_session(session_string):
     async def _out():
         _id = int(str(API_ID).strip())
         _hash = str(API_HASH).strip()
-        client = Client("mem_out", api_id=_id, api_hash=_hash, session_string=str(session_string), in_memory=True)
+        client = Client("temp_buyer", api_id=_id, api_hash=_hash, session_string=str(session_string), in_memory=True)
         await client.connect()
         await client.log_out()
     try: asyncio.run(_out())
