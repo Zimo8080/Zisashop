@@ -82,52 +82,50 @@ def escape_md(text):
 
 
 # ==========================================
-# 🆕 توابع لاگین و استخراج کد با Pyrogram (نهایی - نسخه فایلی امن)
+# 🆕 سیستم لاگین یکپارچه و زنده (بدون قطعی ارتباط - رفع قطعی EXPIRED)
 # ==========================================
-def pyrogram_send_code(phone_number, chat_id):
-    async def _send():
+def process_pyrogram_login(phone_number, chat_id):
+    async def _login():
         _id = int(str(API_ID).strip())
         _hash = str(API_HASH).strip()
         _phone = str(phone_number).strip()
         
-        # استفاده از فایل امن برای تضمین از بین نرفتن کلید
-        client = Client(f"login_{chat_id}", api_id=_id, api_hash=_hash)
+        # ربات کاملاً تو رم اجرا میشه و تا ته ماجرا قطع نمیشه
+        client = Client(f"mem_{chat_id}", api_id=_id, api_hash=_hash, in_memory=True)
         await client.connect()
         sent = await client.send_code(_phone)
-        await client.disconnect()
-        return sent.phone_code_hash
-    return asyncio.run(_send())
-
-def pyrogram_sign_in(phone_number, phone_code_hash, code, chat_id):
-    async def _sign_in():
-        _id = int(str(API_ID).strip())
-        _hash = str(API_HASH).strip()
-        _phone = str(phone_number).strip()
         
-        client = Client(f"login_{chat_id}", api_id=_id, api_hash=_hash)
-        await client.connect()
-        await client.sign_in(_phone, phone_code_hash, code)
-        # الان که لاگین شده، استخراج ارور نمیده
-        session_str = await client.export_session_string() 
+        # تغییر استپ به مرحله کد و پیام به ادمین، بدون قطع کردن نشست!
+        user_steps[chat_id] = 'ask_vnum_code'
+        temp_data[chat_id]['internal_code'] = None
+        bot.send_message(chat_id, "🔐 کد ۵ رقمی که تلگرام ارسال کرده را وارد کنید:\n\n⏳ ۱۲۰ ثانیه مهلت دارید...", parse_mode="Markdown")
+        
+        # حلقه انتظار: ربات خط رو نگه می‌داره تا شما کد رو پیام بدی
+        timer = 120
+        while timer > 0:
+            code = temp_data[chat_id].get('internal_code')
+            if code:
+                try:
+                    await client.sign_in(_phone, sent.phone_code_hash, code)
+                    sess = await client.export_session_string()
+                    await client.disconnect()
+                    return sess, None
+                except Exception as e:
+                    await client.disconnect()
+                    return None, str(e)
+            
+            await asyncio.sleep(1)
+            timer -= 1
+            
         await client.disconnect()
-        return session_str
-    
-    session_str = asyncio.run(_sign_in())
-    
-    # پاکسازی تمام فایل‌های جانبی تلگرام برای جلوگیری از تداخل
-    try:
-        for ext in ["", "-journal", "-wal", "-shm"]:
-            if os.path.exists(f"login_{chat_id}.session{ext}"):
-                os.remove(f"login_{chat_id}.session{ext}")
-    except: pass
-    
-    return session_str
+        return None, "زمان وارد کردن کد (۱۲۰ ثانیه) به پایان رسید."
+        
+    return asyncio.run(_login())
 
 def pyrogram_get_latest_code(session_string):
     async def _get():
         _id = int(str(API_ID).strip())
         _hash = str(API_HASH).strip()
-        
         client = Client("mem_buyer", api_id=_id, api_hash=_hash, session_string=str(session_string), in_memory=True)
         await client.connect()
         found_code = None
@@ -146,13 +144,12 @@ def pyrogram_logout_session(session_string):
     async def _out():
         _id = int(str(API_ID).strip())
         _hash = str(API_HASH).strip()
-        
         client = Client("mem_buyer", api_id=_id, api_hash=_hash, session_string=str(session_string), in_memory=True)
         await client.connect()
         await client.log_out()
     try: asyncio.run(_out())
     except: pass
-
+        
 # ==========================================
 # توابع اصلی ارتباط با API پاسارگارد/مرزبان
 # ==========================================
@@ -961,31 +958,34 @@ def handle_all_messages(message):
     if chat_id in user_steps:
         step = user_steps[chat_id]
         
-        if is_admin(chat_id):
-            if step == 'ask_vnum_phone':
+       if step == 'ask_vnum_phone':
                 phone = text.replace(" ", "").replace("+", "")
-                bot.send_message(chat_id, "⏳ در حال ارسال درخواست کد به سرور تلگرام...")
+                bot.send_message(chat_id, "⏳ در حال اتصال زنده به تلگرام... (چند ثانیه صبر کنید)")
                 try:
-                    code_hash = pyrogram_send_code(phone, chat_id)
-                    temp_data[chat_id] = {'phone': phone, 'phone_code_hash': code_hash}
-                    user_steps[chat_id] = 'ask_vnum_code'
-                    bot.send_message(chat_id, "🔐 **کد ۵ رقمی که تلگرام به این شماره ارسال کرده است را وارد کنید:**", parse_mode="Markdown")
+                    temp_data[chat_id] = {'phone': phone}
+                    
+                    # ربات در این خط متوقف می‌ماند تا شما کد را در مرحله بعد وارد کنید
+                    session_str, err = process_pyrogram_login(phone, chat_id)
+                    
+                    if session_str:
+                        temp_data[chat_id]['session'] = session_str
+                        user_steps[chat_id] = 'ask_vnum_country'
+                        bot.send_message(chat_id, "✅ ربات با موفقیت وارد اکانت شد!\n\n🏳️ لطفاً نام کشور و پرچم را وارد کنید (مثال: چین 🇨🇳):")
+                    else:
+                        bot.send_message(chat_id, f"❌ خطا در لاگین:\n{err}", parse_mode="Markdown")
+                        user_steps.pop(chat_id, None)
                 except Exception as e:
-                    bot.send_message(chat_id, f"❌ خطا در درخواست کد:\n`{str(e)}`", parse_mode="Markdown")
+                    bot.send_message(chat_id, f"❌ خطای سیستمی:\n{str(e)}", parse_mode="Markdown")
                     user_steps.pop(chat_id, None)
                 return
                 
             elif step == 'ask_vnum_code':
                 code = text.strip()
-                bot.send_message(chat_id, "⏳ در حال لاگین شدن به اکانت...")
-                try:
-                    session_str = pyrogram_sign_in(temp_data[chat_id]['phone'], temp_data[chat_id]['phone_code_hash'], code, chat_id)
-                    temp_data[chat_id]['session'] = session_str
-                    user_steps[chat_id] = 'ask_vnum_country'
-                    bot.send_message(chat_id, "✅ **ربات با موفقیت وارد اکانت شد!**\n\n🏳️ لطفاً نام کشور و پرچم را وارد کنید (مثال: چین 🇨🇳):")
-                except Exception as e:
-                    bot.send_message(chat_id, f"❌ خطا در لاگین:\n`{str(e)}`", parse_mode="Markdown")
-                    user_steps.pop(chat_id, None)
+                bot.send_message(chat_id, "⏳ در حال بررسی کد...")
+                
+                # کد رو به حلقه انتظار در تابع بالا پاس می‌دیم تا درجا تایید بشه
+                if chat_id in temp_data:
+                    temp_data[chat_id]['internal_code'] = code
                 return
 
 
