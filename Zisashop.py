@@ -82,50 +82,51 @@ def escape_md(text):
 
 
 # ==========================================
-# 🆕 سیستم لاگین یکپارچه و زنده (بدون قطعی ارتباط - رفع قطعی EXPIRED)
+# 🆕 توابع لاگین و استخراج کد با Pyrogram (نهایی، پایدار و مخصوص Railway)
 # ==========================================
-def process_pyrogram_login(phone_number, chat_id):
-    async def _login():
+def pyrogram_send_code(phone_number, chat_id):
+    async def _send():
+        # تبدیل اجباری به عدد برای رفع ارور Integer و استفاده از /tmp برای رفع ارور EXPIRED
         _id = int(str(API_ID).strip())
         _hash = str(API_HASH).strip()
         _phone = str(phone_number).strip()
         
-        # ربات کاملاً تو رم اجرا میشه و تا ته ماجرا قطع نمیشه
-        client = Client(f"mem_{chat_id}", api_id=_id, api_hash=_hash, in_memory=True)
+        client = Client(f"sess_{chat_id}", api_id=_id, api_hash=_hash, workdir="/tmp")
         await client.connect()
         sent = await client.send_code(_phone)
-        
-        # تغییر استپ به مرحله کد و پیام به ادمین، بدون قطع کردن نشست!
-        user_steps[chat_id] = 'ask_vnum_code'
-        temp_data[chat_id]['internal_code'] = None
-        bot.send_message(chat_id, "🔐 کد ۵ رقمی که تلگرام ارسال کرده را وارد کنید:\n\n⏳ ۱۲۰ ثانیه مهلت دارید...", parse_mode="Markdown")
-        
-        # حلقه انتظار: ربات خط رو نگه می‌داره تا شما کد رو پیام بدی
-        timer = 120
-        while timer > 0:
-            code = temp_data[chat_id].get('internal_code')
-            if code:
-                try:
-                    await client.sign_in(_phone, sent.phone_code_hash, code)
-                    sess = await client.export_session_string()
-                    await client.disconnect()
-                    return sess, None
-                except Exception as e:
-                    await client.disconnect()
-                    return None, str(e)
-            
-            await asyncio.sleep(1)
-            timer -= 1
-            
         await client.disconnect()
-        return None, "زمان وارد کردن کد (۱۲۰ ثانیه) به پایان رسید."
+        return sent.phone_code_hash
+    return asyncio.run(_send())
+
+def pyrogram_sign_in(phone_number, phone_code_hash, code, chat_id):
+    async def _sign_in():
+        _id = int(str(API_ID).strip())
+        _hash = str(API_HASH).strip()
+        _phone = str(phone_number).strip()
         
-    return asyncio.run(_login())
+        client = Client(f"sess_{chat_id}", api_id=_id, api_hash=_hash, workdir="/tmp")
+        await client.connect()
+        await client.sign_in(_phone, phone_code_hash, code)
+        session_str = await client.export_session_string()
+        await client.disconnect()
+        return session_str
+    
+    session_str = asyncio.run(_sign_in())
+    
+    # پاکسازی فایل‌های موقت از سرور Railway
+    try:
+        for ext in ["", "-journal", "-wal", "-shm"]:
+            if os.path.exists(f"/tmp/sess_{chat_id}.session{ext}"):
+                os.remove(f"/tmp/sess_{chat_id}.session{ext}")
+    except: pass
+    
+    return session_str
 
 def pyrogram_get_latest_code(session_string):
     async def _get():
         _id = int(str(API_ID).strip())
         _hash = str(API_HASH).strip()
+        
         client = Client("mem_buyer", api_id=_id, api_hash=_hash, session_string=str(session_string), in_memory=True)
         await client.connect()
         found_code = None
@@ -144,12 +145,13 @@ def pyrogram_logout_session(session_string):
     async def _out():
         _id = int(str(API_ID).strip())
         _hash = str(API_HASH).strip()
+        
         client = Client("mem_buyer", api_id=_id, api_hash=_hash, session_string=str(session_string), in_memory=True)
         await client.connect()
         await client.log_out()
     try: asyncio.run(_out())
     except: pass
-        
+
 # ==========================================
 # توابع اصلی ارتباط با API پاسارگارد/مرزبان
 # ==========================================
