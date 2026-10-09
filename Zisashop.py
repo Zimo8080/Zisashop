@@ -82,38 +82,36 @@ def escape_md(text):
 
 
 # ==========================================
-# 🆕 توابع لاگین و استخراج کد با Pyrogram (نسخه ویژه Railway)
+# 🆕 توابع لاگین و استخراج کد با Pyrogram (نسخه ویژه حافظه RAM برای Railway)
 # ==========================================
+temp_sessions = {} # ذخیره کلید احراز هویت در رم به جای فایل برای دور زدن محدودیت هاست
+
 def pyrogram_send_code(phone_number, chat_id):
     async def _send():
-        # استفاده از chat_id برای نام فایل و ذخیره در پوشه مجاز /tmp
-        client = Client(f"sess_{chat_id}", api_id=API_ID, api_hash=API_HASH, workdir="/tmp")
+        client = Client("mem_auth", api_id=API_ID, api_hash=API_HASH, in_memory=True)
         await client.connect()
         sent = await client.send_code(phone_number)
+        session_str = await client.export_session_string()
         await client.disconnect()
-        return sent.phone_code_hash
-    return asyncio.run(_send())
+        return sent.phone_code_hash, session_str
+    
+    code_hash, session_str = asyncio.run(_send())
+    temp_sessions[chat_id] = session_str # کلید در رم ذخیره می‌شود
+    return code_hash
 
 def pyrogram_sign_in(phone_number, phone_code_hash, code, chat_id):
     async def _sign_in():
-        client = Client(f"sess_{chat_id}", api_id=API_ID, api_hash=API_HASH, workdir="/tmp")
+        saved_session = temp_sessions.get(chat_id)
+        client = Client("mem_auth", api_id=API_ID, api_hash=API_HASH, session_string=saved_session, in_memory=True)
         await client.connect()
         await client.sign_in(phone_number, phone_code_hash, code)
-        session_str = await client.export_session_string()
+        final_session = await client.export_session_string()
         await client.disconnect()
-        return session_str
+        return final_session
     
-    session_str = asyncio.run(_sign_in())
-    
-    # پاکسازی فایل موقت از سرور Railway
-    try:
-        if os.path.exists(f"/tmp/sess_{chat_id}.session"):
-            os.remove(f"/tmp/sess_{chat_id}.session")
-        if os.path.exists(f"/tmp/sess_{chat_id}.session-journal"):
-            os.remove(f"/tmp/sess_{chat_id}.session-journal")
-    except: pass
-    
-    return session_str
+    final_sess = asyncio.run(_sign_in())
+    temp_sessions.pop(chat_id, None) # پاکسازی رم بعد از لاگین
+    return final_sess
 
 def pyrogram_get_latest_code(session_string):
     async def _get():
