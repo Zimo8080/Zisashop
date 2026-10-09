@@ -78,13 +78,12 @@ temp_data = {}
 user_nav = {}
 def escape_md(text):
     if not text: return ""
-    return str(text).replace("`", "")
-
+    return str(text).replace("`", 
 
 # ==========================================
-# 🆕 توابع لاگین (نسخه فوق‌پیشرفته: انتقال مستقیم مموری کلاینت در رم)
+# 🆕 توابع لاگین (نسخه قطعی با انتقال Auth Key در رم)
 # ==========================================
-session_storages = {} # ذخیره حافظه داخلی تلگرام مستقیماً در رم (ضد ارورِ سرور)
+temp_auth_keys = {} # ذخیره کلید خام سشن برای فریب دادن تلگرام
 
 def pyrogram_send_code(phone_number, chat_id):
     async def _send():
@@ -92,13 +91,13 @@ def pyrogram_send_code(phone_number, chat_id):
         _hash = str(API_HASH).strip()
         _phone = str(phone_number).strip()
         
-        client = Client(f"mem_{chat_id}", api_id=_id, api_hash=_hash, in_memory=True)
-        
-        # ترفند طلایی: استخراج حافظه داخلی کلاینت قبل از اتصال
-        session_storages[chat_id] = client.storage 
-        
+        client = Client("mem_send", api_id=_id, api_hash=_hash, in_memory=True)
         await client.connect()
         sent = await client.send_code(_phone)
+        
+        # استخراج کلید خام ارتباطی قبل از خروج و ذخیره در رم
+        temp_auth_keys[chat_id] = await client.export_session_string()
+        
         await client.disconnect()
         return sent.phone_code_hash
     return asyncio.run(_send())
@@ -109,29 +108,27 @@ def pyrogram_sign_in(phone_number, phone_code_hash, code, chat_id):
         _hash = str(API_HASH).strip()
         _phone = str(phone_number).strip()
         
-        client = Client(f"mem_{chat_id}", api_id=_id, api_hash=_hash, in_memory=True)
+        # بازخوانی کلید خام (تلگرام فکر می‌کند این همان دستگاه قبلی است و قطع نشده)
+        saved_session = temp_auth_keys.get(chat_id)
         
-        # تزریق حافظه‌ی دست‌نخورده‌ی مرحله قبل به کلاینت فعلی (تلگرام متوجه قطعی نمی‌شود!)
-        if chat_id in session_storages:
-            client.storage = session_storages[chat_id]
-            
+        client = Client("mem_sign", api_id=_id, api_hash=_hash, session_string=saved_session, in_memory=True)
         await client.connect()
         await client.sign_in(_phone, phone_code_hash, code)
         
-        # الان که لاگین کامل است، استخراج نشست هیچ ارور Integer ای نمی‌دهد
-        session_str = await client.export_session_string()
+        # استخراج سشن نهایی که حالا لاگین شده است
+        final_session = await client.export_session_string()
         await client.disconnect()
-        return session_str
+        return final_session
     
     session_str = asyncio.run(_sign_in())
-    session_storages.pop(chat_id, None) # پاکسازی رم
+    temp_auth_keys.pop(chat_id, None) # پاکسازی حافظه
     return session_str
 
 def pyrogram_get_latest_code(session_string):
     async def _get():
         _id = int(str(API_ID).strip())
         _hash = str(API_HASH).strip()
-        client = Client("mem_buyer", api_id=_id, api_hash=_hash, session_string=str(session_string), in_memory=True)
+        client = Client("mem_get", api_id=_id, api_hash=_hash, session_string=str(session_string), in_memory=True)
         await client.connect()
         found_code = None
         async for msg in client.get_chat_history(777000, limit=5):
@@ -149,7 +146,7 @@ def pyrogram_logout_session(session_string):
     async def _out():
         _id = int(str(API_ID).strip())
         _hash = str(API_HASH).strip()
-        client = Client("mem_buyer", api_id=_id, api_hash=_hash, session_string=str(session_string), in_memory=True)
+        client = Client("mem_out", api_id=_id, api_hash=_hash, session_string=str(session_string), in_memory=True)
         await client.connect()
         await client.log_out()
     try: asyncio.run(_out())
