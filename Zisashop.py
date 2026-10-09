@@ -9,6 +9,20 @@ import time
 from urllib.parse import quote, unquote
 from datetime import datetime
 
+try:
+    _conn = sqlite3.connect('shop.db')
+    _c = _conn.cursor()
+    _c.execute('''CREATE TABLE IF NOT EXISTS vnumbers
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  country TEXT,
+                  price INTEGER,
+                  phone TEXT,
+                  session_string TEXT)''')
+    _conn.commit()
+    _conn.close()
+except Exception as e:
+    print("DB Setup Error:", e)
+
 # ==========================================
 # 🆕 اضافه شدن کتابخانه‌های بخش لاگین شماره مجازی
 from pyrogram import Client
