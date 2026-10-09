@@ -958,24 +958,24 @@ def handle_all_messages(message):
     if chat_id in user_steps:
         step = user_steps[chat_id]
         
-    if step == 'ask_vnum_phone':
-             phone = text.replace(" ", "").replace("+", "")
-             bot.send_message(chat_id, "⏳ در حال اتصال زنده به تلگرام... (چند ثانیه صبر کنید)")
-             try:
+            if step == 'ask_vnum_phone':
+                phone = text.replace(" ", "").replace("+", "")
+                bot.send_message(chat_id, "⏳ در حال اتصال زنده به تلگرام... (چند ثانیه صبر کنید)")
+                try:
                     temp_data[chat_id] = {'phone': phone}
                     
                     # ربات در این خط متوقف می‌ماند تا شما کد را در مرحله بعد وارد کنید
-           session_str, err = process_pyrogram_login(phone, chat_id)
+                    session_str, err = process_pyrogram_login(phone, chat_id)
                     
                     if session_str:
                         temp_data[chat_id]['session'] = session_str
                         user_steps[chat_id] = 'ask_vnum_country'
-                        bot.send_message(chat_id, "✅ ربات با موفقیت وارد اکانت شد!\n\n🏳️ لطفاً نام کشور و پرچم را وارد کنید (مثال: چین 🇨🇳):")
+                        bot.send_message(chat_id, "✅ **ربات با موفقیت وارد اکانت شد!**\n\n🏳️ لطفاً نام کشور و پرچم را وارد کنید (مثال: چین 🇨🇳):")
                     else:
-                        bot.send_message(chat_id, f"❌ خطا در لاگین:\n{err}", parse_mode="Markdown")
+                        bot.send_message(chat_id, f"❌ خطا در لاگین:\n`{err}`", parse_mode="Markdown")
                         user_steps.pop(chat_id, None)
                 except Exception as e:
-                    bot.send_message(chat_id, f"❌ خطای سیستمی:\n{str(e)}", parse_mode="Markdown")
+                    bot.send_message(chat_id, f"❌ خطای سیستمی:\n`{str(e)}`", parse_mode="Markdown")
                     user_steps.pop(chat_id, None)
                 return
                 
@@ -987,6 +987,7 @@ def handle_all_messages(message):
                 if chat_id in temp_data:
                     temp_data[chat_id]['internal_code'] = code
                 return
+
 
 
 
