@@ -78,7 +78,7 @@ temp_data = {}
 user_nav = {}
 def escape_md(text):
     if not text: return ""
-    return str(text).replace("`", 
+    return str(text).replace("`",)
 
 # ==========================================
 # 🆕 توابع لاگین (نسخه قطعی با انتقال Auth Key در رم)
