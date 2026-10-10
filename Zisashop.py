@@ -1699,39 +1699,45 @@ def handle_query(call):
             
         bot.edit_message_text("🛒 **لیست شماره‌های موجود:**\nبرای خرید روی اسم کشور در ردیف مورد نظر کلیک کنید:", chat_id, msg_id, reply_markup=markup, parse_mode="Markdown")
 
-    elif data.startswith("buyvn_"):
+   elif data.startswith("buyvn_"):
         parts = data.split("_")
-        country = parts[1]
-        price = int(parts[2])
+        country = "_".join(parts[1:-1]) # برای جلوگیری از باگ‌های فاصله در اسم کشور
+        price = int(parts[-1])
         
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("SELECT balance FROM users WHERE user_id=?", (chat_id,))
-        user_bal = c.fetchone()[0]
+        # ۱. اتصال به دیتابیس قدیمی برای چک کردن موجودی کاربر
+        conn_users = sqlite3.connect(DB_PATH)
+        c_users = conn_users.cursor()
+        c_users.execute("SELECT balance FROM users WHERE user_id=?", (chat_id,))
+        user_bal_row = c_users.fetchone()
+        user_bal = user_bal_row[0] if user_bal_row else 0
+        
         if user_bal < price:
             bot.answer_callback_query(call.id, "❌ موجودی کیف پول شما کافی نیست! لطفا حساب خود را شارژ کنید.", show_alert=True)
-            conn.close()
+            conn_users.close()
             return
             
-        c.execute("SELECT id, phone, session_string FROM vnumbers WHERE country=? AND price=? AND status='available' ORDER BY RANDOM() LIMIT 1", (country, price))
-        vn = c.fetchone()
+        # ۲. اتصال به دیتابیس جدید برای برداشتن شماره
+        conn_vnum = sqlite3.connect('shop.db')
+        c_vnum = conn_vnum.cursor()
+        c_vnum.execute("SELECT id, phone, session_string FROM vnumbers WHERE country=? AND price=? AND status='available' ORDER BY RANDOM() LIMIT 1", (country, price))
+        vn = c_vnum.fetchone()
         
         if not vn:
             bot.answer_callback_query(call.id, "❌ متاسفانه لحظاتی پیش موجودی این شماره به اتمام رسید.", show_alert=True)
-            conn.close()
+            conn_users.close()
+            conn_vnum.close()
             return
             
         vn_id, phone, session_code = vn
-        c.execute("UPDATE vnumbers SET status='sold', buyer_id=? WHERE id=? AND status='available'", (chat_id, vn_id))
-        if c.rowcount == 0:
-            bot.answer_callback_query(call.id, "❌ کاربری دیگر ثانیه‌ای پیش این شماره را خرید. لطفاً دوباره تلاش کنید.", show_alert=True)
-            conn.close()
-            return
+        c_vnum.execute("UPDATE vnumbers SET status='sold', buyer_id=? WHERE id=? AND status='available'", (chat_id, vn_id))
+        conn_vnum.commit()
+        conn_vnum.close()
             
+        # ۳. کسر موجودی کاربر بعد از اطمینان از برداشتن شماره
         new_bal = user_bal - price
-        c.execute("UPDATE users SET balance=? WHERE user_id=?", (new_bal, chat_id))
-        conn.commit()
-        conn.close()
+        c_users.execute("UPDATE users SET balance=? WHERE user_id=?", (new_bal, chat_id))
+        conn_users.commit()
+        conn_users.close()
         
         msg = f"✅ **خرید با موفقیت انجام شد!**\n━━━━ ❖ ━━━━\n📱 **شماره شما:** `{phone}`\n💰 **قیمت پرداختی:** {price:,} تومان\n\n👇 روی دکمه زیر کلیک کنید تا ربات کد ورود تلگرام را برایتان نمایش دهد."
         markup = InlineKeyboardMarkup()
@@ -1742,7 +1748,7 @@ def handle_query(call):
         vn_id = data.split("_")[1]
         bot.edit_message_text("⏳ در حال ارتباط با سرور تلگرام جهت دریافت کد جدید...\n(ممکن است چند ثانیه طول بکشد)", chat_id, msg_id)
         
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect('shop.db')
         c = conn.cursor()
         c.execute("SELECT phone, session_string FROM vnumbers WHERE id=? AND buyer_id=?", (vn_id, chat_id))
         vn = c.fetchone()
@@ -1768,7 +1774,7 @@ def handle_query(call):
 
     elif data.startswith("logoutvn_"):
         vn_id = data.split("_")[1]
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect('shop.db')
         c = conn.cursor()
         c.execute("SELECT session_string FROM vnumbers WHERE id=? AND buyer_id=?", (vn_id, chat_id))
         vn = c.fetchone()
@@ -1780,7 +1786,7 @@ def handle_query(call):
             conn.commit()
             bot.edit_message_text("✅ ربات فروشگاه با موفقیت از این شماره خارج شد.\nامنیت اکانت شما برقرار است.", chat_id, msg_id)
         conn.close()
-
+            
     # ==========================================
     # تنظیمات تخفیف و قیمت
     # ==========================================
