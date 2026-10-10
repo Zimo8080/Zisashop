@@ -1669,10 +1669,10 @@ def handle_query(call):
         bot.send_message(chat_id, "📱 **لطفاً شماره مجازی را به همراه کد کشور وارد کنید (مثلاً +79991234567):**", parse_mode="Markdown")
 
 elif data == "buy_vnum_list":
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect('shop.db')
         c = conn.cursor()
         
-        # 🌟 این خط جادویی، وضعیت شماره‌های قبلی که ناقص ثبت شده بودن رو به "موجود" تغییر میده
+        # آپدیت وضعیت شماره‌هایی که قبلا ناقص ثبت شده بودن
         try:
             c.execute("UPDATE vnumbers SET status='available' WHERE status IS NULL")
             conn.commit()
