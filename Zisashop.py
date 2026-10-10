@@ -18,11 +18,16 @@ try:
                   price INTEGER,
                   phone TEXT,
                   session_string TEXT)''')
+    # اضافه کردن ستون‌های مربوط به خریدار (اگر وجود نداشته باشند)
+    try: _c.execute("ALTER TABLE vnumbers ADD COLUMN buyer_id INTEGER DEFAULT 0")
+    except: pass
+    try: _c.execute("ALTER TABLE vnumbers ADD COLUMN status TEXT DEFAULT 'available'")
+    except: pass
     _conn.commit()
     _conn.close()
 except Exception as e:
     print("DB Setup Error:", e)
-
+    
 # ==========================================
 # 🆕 اضافه شدن کتابخانه‌های بخش لاگین شماره مجازی
 from pyrogram import Client
@@ -1663,9 +1668,17 @@ def handle_query(call):
         user_steps[chat_id] = "ask_vnum_phone"
         bot.send_message(chat_id, "📱 **لطفاً شماره مجازی را به همراه کد کشور وارد کنید (مثلاً +79991234567):**", parse_mode="Markdown")
 
-    elif data == "buy_vnum_list":
+elif data == "buy_vnum_list":
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
+        
+        # 🌟 این خط جادویی، وضعیت شماره‌های قبلی که ناقص ثبت شده بودن رو به "موجود" تغییر میده
+        try:
+            c.execute("UPDATE vnumbers SET status='available' WHERE status IS NULL")
+            conn.commit()
+        except:
+            pass
+            
         c.execute("SELECT country, price, COUNT(id) FROM vnumbers WHERE status='available' GROUP BY country, price")
         items = c.fetchall()
         conn.close()
