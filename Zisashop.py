@@ -1672,9 +1672,9 @@ def handle_query(call):
         conn = sqlite3.connect('shop.db')
         c = conn.cursor()
         
-        # آپدیت وضعیت شماره‌هایی که قبلا ناقص ثبت شده بودن
+        # 🌟 اصلاحیه هوشمند: همه شماره‌هایی که buyer_id ندارن یا فروخته نشدن رو برمی‌گردونه به حالت موجود
         try:
-            c.execute("UPDATE vnumbers SET status='available' WHERE status IS NULL")
+            c.execute("UPDATE vnumbers SET status='available' WHERE buyer_id IS NULL OR buyer_id=0")
             conn.commit()
         except:
             pass
