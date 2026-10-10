@@ -1668,7 +1668,7 @@ def handle_query(call):
         user_steps[chat_id] = "ask_vnum_phone"
         bot.send_message(chat_id, "📱 **لطفاً شماره مجازی را به همراه کد کشور وارد کنید (مثلاً +79991234567):**", parse_mode="Markdown")
 
-elif data == "buy_vnum_list":
+    elif data == "buy_vnum_list":
         conn = sqlite3.connect('shop.db')
         c = conn.cursor()
         
