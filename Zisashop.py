@@ -1699,7 +1699,7 @@ def handle_query(call):
             
         bot.edit_message_text("🛒 **لیست شماره‌های موجود:**\nبرای خرید روی اسم کشور در ردیف مورد نظر کلیک کنید:", chat_id, msg_id, reply_markup=markup, parse_mode="Markdown")
 
-   elif data.startswith("buyvn_"):
+    elif data.startswith("buyvn_"):
         parts = data.split("_")
         country = "_".join(parts[1:-1]) # برای جلوگیری از باگ‌های فاصله در اسم کشور
         price = int(parts[-1])
